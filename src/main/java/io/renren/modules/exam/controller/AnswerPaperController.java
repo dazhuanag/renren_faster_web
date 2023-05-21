@@ -160,8 +160,9 @@ public class AnswerPaperController extends AbstractController {
     @RequestMapping("/remove/{id}")
     @RequiresPermissions("exam:answerpaper:delete")
     public R delete(@PathVariable("id") Long id) {
+        Long userId = getUserId();
         QueryWrapper<AnswerPaperEntity> wrapper = new QueryWrapper<>();
-        wrapper.eq("paper_id", id);
+        wrapper.eq("paper_id", id).eq("user_id", userId);
         answerPaperService.remove(wrapper);
         return R.ok();
     }
