@@ -23,7 +23,7 @@ public class ECourseServiceImpl extends ServiceImpl<ECourseDao, ECourseEntity> i
         QueryWrapper<ECourseEntity> wrapper = new QueryWrapper<>();
 
         if (key != null) {
-            wrapper.like("name", "%" + key + "%");
+            wrapper.like("name",  key );
         }
         IPage<ECourseEntity> page = this.page(
                 new Query<ECourseEntity>().getPage(params),

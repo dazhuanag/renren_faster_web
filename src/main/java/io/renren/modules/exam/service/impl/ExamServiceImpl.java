@@ -1,12 +1,9 @@
 package io.renren.modules.exam.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
 import io.renren.modules.exam.VO.ExamVO;
-import io.renren.modules.exam.VO.QuestionVO;
-import io.renren.modules.exam.entity.ECourseEntity;
 import io.renren.modules.exam.entity.PaperEntity;
-import io.renren.modules.exam.entity.QuestionEntity;
-import io.renren.modules.exam.service.ECourseService;
 import io.renren.modules.exam.service.PaperService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,9 +32,9 @@ public class ExamServiceImpl extends ServiceImpl<ExamDao, ExamEntity> implements
     @Override
     public PageUtils queryPage(Map<String, Object> params) {
         QueryWrapper<ExamEntity> wrapper = new QueryWrapper<>();
-        Object key = params.get("key");
-        if (key != null) {
-            wrapper.like("name", "%" + key + "%");
+        String key = params.get("key").toString();
+        if (StrUtil.isNotBlank(key)) {
+            wrapper.like("name", key);
         }
         IPage<ExamEntity> page = this.page(
                 new Query<ExamEntity>().getPage(params),

@@ -8,16 +8,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import cn.hutool.core.util.RandomUtil;
-import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import io.renren.common.utils.ImageUtils;
 import io.renren.modules.exam.entity.PaperEntity;
-import io.renren.modules.exam.entity.PaperQuestionEntity;
+import io.renren.modules.exam.entity.QuestionEntity;
 import io.renren.modules.exam.service.PaperService;
+import io.renren.modules.exam.service.QuestionService;
 import io.renren.modules.sys.controller.AbstractController;
+import io.renren.modules.sys.entity.SysUserEntity;
+import io.renren.modules.sys.service.SysUserRoleService;
+import io.renren.modules.sys.service.SysUserService;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,7 +49,12 @@ public class AnswerPaperController extends AbstractController {
     private AnswerPaperService answerPaperService;
     @Autowired
     private PaperService paperService;
-
+    @Autowired
+    private QuestionService questionService;
+    @Autowired
+    private SysUserRoleService sysUserRoleService;
+    @Autowired
+    private SysUserService userService;
     /**
      * 列表
      */
@@ -54,9 +62,12 @@ public class AnswerPaperController extends AbstractController {
     @RequiresPermissions("exam:answerpaper:list")
     public R list(@RequestParam Map<String, Object> params) {
 //        PageUtils page = answerPaperService.queryPage(params);
-        Long userId = getUserId();
+        SysUserEntity user = getUser();
+        List<Long> longs = sysUserRoleService.queryRoleIdList(user.getUserId());
         QueryWrapper<AnswerPaperEntity> wrapper = new QueryWrapper<>();
-        wrapper.eq("user_id", userId);
+        if (longs.contains(3L)){
+            wrapper.eq("user_id", user.getUserId());
+        }
         List<AnswerPaperEntity> list = answerPaperService.list(wrapper);
         Map<Long, List<AnswerPaperEntity>> collect = list.stream().collect(Collectors.groupingBy(AnswerPaperEntity::getPaperId));
         Set<Long> paperIds = collect.keySet();
@@ -71,7 +82,11 @@ public class AnswerPaperController extends AbstractController {
             jsonObject.put("paperTotalScore", paper.getTotalScore());
             jsonObject.put("paperTotalTime", paper.getTotalTime());
             jsonObject.put("userTotalScore", userTotalScore);
-            jsonObject.put("userName", getUser().getUsername());
+            if (!answerPapers.isEmpty()){
+                Long userId = answerPapers.get(0).getUserId();
+                SysUserEntity userEntity = userService.getById(userId);
+                jsonObject.put("userName", userEntity.getUsername());
+            }
             jsonObject.put("examTime", answerPapers.get(0).getCreateTime());
 
             result.add(jsonObject);
@@ -104,30 +119,22 @@ public class AnswerPaperController extends AbstractController {
         questions.forEach(question -> {
             Long id = question.getLong("id");
             String reply = question.getString("reply");
-            String standerAnswer = question.getString("standerAnswer");
-            Integer maxScore = question.getInteger("score");
             AnswerPaperEntity answerPaperEntity = new AnswerPaperEntity();
             answerPaperEntity.setAnswer(reply);
             answerPaperEntity.setPaperId(paperId);
             answerPaperEntity.setQuestionId(id);
-            int score = getScore(reply, standerAnswer, maxScore);
-            answerPaperEntity.setScore(score);
             answerPaperEntity.setCreateTime(new Date());
             answerPaperEntity.setUserId(userId);
+            String standerAnswer = question.getString("standerAnswer");
+            Integer maxScore = question.getInteger("score");
+            // 识别图片,自动计算分数
+//            String imageUrl = question.getString("imageUrl");
+//            String answer = ImageUtils.getImageText(imageUrl);
+            int score = ImageUtils.getScore(standerAnswer, reply, maxScore);
+            answerPaperEntity.setScore(score);
             answerPaperService.save(answerPaperEntity);
         });
-
-//		answerPaperService.save(answerPaper);
-
         return R.ok();
-    }
-
-    private int getScore(String reply, String standerAnswer, Integer maxScore) {
-        if (StrUtil.isBlank(reply)) {
-            return 0;
-        }
-        int max = Math.max(0, maxScore - 10);
-        return RandomUtil.randomInt(max, maxScore);
     }
 
     /**
@@ -165,6 +172,42 @@ public class AnswerPaperController extends AbstractController {
         wrapper.eq("paper_id", id).eq("user_id", userId);
         answerPaperService.remove(wrapper);
         return R.ok();
+    }
+
+    /**
+     * 信息
+     */
+    @RequestMapping("/detail/{id}")
+//    @RequiresPermissions("exam:paper:info")
+    public R getPaperInfo(@PathVariable("id") Long id, @RequestParam Map<String, Object> params) {
+        Long userId = getUserId();
+        QueryWrapper<AnswerPaperEntity> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("paper_id", id);
+        queryWrapper.eq("user_id", userId);
+        List<AnswerPaperEntity> list = answerPaperService.list(queryWrapper);
+
+        PaperEntity paper = paperService.getById(id);
+//        QueryWrapper<PaperQuestionEntity> queryWrapper = new QueryWrapper<>();
+//        queryWrapper.eq("paper_id", paper.getId());
+//        List<PaperQuestionEntity> paperQuestions = paperQuestionService.list(queryWrapper);
+        List<JSONObject> questionJsons = new ArrayList<>();
+        list.forEach(answerPaperEntity -> {
+            JSONObject jsonObject = new JSONObject();
+//            BeanUtil.copyProperties(paperQuestion, jsonObject);
+            QuestionEntity question = questionService.getById(answerPaperEntity.getQuestionId());
+            jsonObject.put("content", question.getContent());
+            jsonObject.put("answer", answerPaperEntity.getAnswer());
+            jsonObject.put("type", question.getType());
+            jsonObject.put("score", question.getScores());
+            jsonObject.put("questionId", answerPaperEntity.getId());
+            jsonObject.put("paperId", paper.getId());
+            jsonObject.put("getScore", answerPaperEntity.getScore());
+            questionJsons.add(jsonObject);
+        });
+        JSONObject jsonObject = JSONObject.parseObject(JSON.toJSONString(paper));
+//        jsonObject.put("paper",paper);
+        jsonObject.put("questionList", questionJsons);
+        return R.ok().put("data", jsonObject);
     }
 
 }
