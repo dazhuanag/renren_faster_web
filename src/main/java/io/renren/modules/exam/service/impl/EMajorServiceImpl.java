@@ -24,7 +24,7 @@ public class EMajorServiceImpl extends ServiceImpl<EMajorDao, EMajorEntity> impl
         QueryWrapper<EMajorEntity> wrapper = new QueryWrapper<>();
 
         if (key != null) {
-            wrapper.like("name", "%" + key + "%");
+            wrapper.like("name",  key );
         }
         IPage<EMajorEntity> page = this.page(
                 new Query<EMajorEntity>().getPage(params), wrapper

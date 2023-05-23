@@ -23,7 +23,7 @@ public class EClassServiceImpl extends ServiceImpl<EClassDao, EClassEntity> impl
         QueryWrapper<EClassEntity> wrapper = new QueryWrapper<>();
 
         if (key != null) {
-            wrapper.like("name", "%" + key + "%");
+            wrapper.like("name", key);
         }
         IPage<EClassEntity> page = this.page(
                 new Query<EClassEntity>().getPage(params),
