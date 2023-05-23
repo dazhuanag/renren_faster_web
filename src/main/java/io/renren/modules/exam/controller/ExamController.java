@@ -1,18 +1,13 @@
 package io.renren.modules.exam.controller;
 
-import java.io.File;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Map;
 
-import com.aliyun.oss.OSS;
-import com.aliyun.oss.OSSClient;
-import com.aliyun.oss.OSSClientBuilder;
-import com.aliyun.oss.model.ObjectMetadata;
-import com.aliyun.oss.model.PutObjectResult;
+import com.alibaba.fastjson.JSONObject;
 import io.renren.common.exception.RRException;
-import io.renren.modules.oss.cloud.OSSFactory;
-import io.renren.modules.oss.entity.SysOssEntity;
+import io.renren.common.utils.OssUtils;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -50,12 +45,10 @@ public class ExamController {
         if (file.isEmpty()) {
             throw new RRException("上传文件不能为空");
         }
-        OSS ossClient = new OSSClientBuilder().build("oss-cn-hangzhou.aliyuncs.com", "LTAI4GCH1vX6DKqJWxd6nEuW", "yBshYweHOpqDuhCArrVHwIiBKpyqSL");
-        ObjectMetadata meta = new ObjectMetadata();
-        meta.setContentType("image/jpg");
+        InputStream inputStream = file.getInputStream();
+        String filename = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+        String fileUrl = OssUtils.post(inputStream, filename);
 
-        PutObjectResult putObjectResult = ossClient.putObject("web-tlias", "picture", file.getInputStream(), meta);
-        ossClient.shutdown();
         //上传文件
 //        String suffix = file.getOriginalFilename().substring(file.getOriginalFilename().lastIndexOf("."));
 
@@ -67,7 +60,7 @@ public class ExamController {
 //        ossEntity.setCreateDate(new Date());
 //        sysOssService.save(ossEntity);
 
-        return R.ok().put("result", putObjectResult);
+        return R.ok().put("result", fileUrl);
     }
 
     /**
