@@ -1,5 +1,6 @@
 package io.renren.modules.exam.service.impl;
 
+import cn.hutool.core.util.StrUtil;
 import org.springframework.stereotype.Service;
 import java.util.Map;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -18,11 +19,15 @@ public class PaperServiceImpl extends ServiceImpl<PaperDao, PaperEntity> impleme
 
     @Override
     public PageUtils queryPage(Map<String, Object> params) {
+        QueryWrapper<PaperEntity> wrapper = new QueryWrapper<>();
+        String key = params.get("key").toString();
+        if (StrUtil.isNotBlank(key)) {
+            wrapper.like("name", key);
+        }
         IPage<PaperEntity> page = this.page(
                 new Query<PaperEntity>().getPage(params),
-                new QueryWrapper<PaperEntity>()
+                wrapper
         );
-
         return new PageUtils(page);
     }
 

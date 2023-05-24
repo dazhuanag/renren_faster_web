@@ -65,7 +65,7 @@ public class AnswerPaperController extends AbstractController {
         SysUserEntity user = getUser();
         List<Long> longs = sysUserRoleService.queryRoleIdList(user.getUserId());
         QueryWrapper<AnswerPaperEntity> wrapper = new QueryWrapper<>();
-        if (longs.contains(3L)){
+        if (longs.contains(3L)) {
             wrapper.eq("user_id", user.getUserId());
         }
         List<AnswerPaperEntity> list = answerPaperService.list(wrapper);
@@ -82,10 +82,11 @@ public class AnswerPaperController extends AbstractController {
             jsonObject.put("paperTotalScore", paper.getTotalScore());
             jsonObject.put("paperTotalTime", paper.getTotalTime());
             jsonObject.put("userTotalScore", userTotalScore);
-            if (!answerPapers.isEmpty()){
+            if (!answerPapers.isEmpty()) {
                 Long userId = answerPapers.get(0).getUserId();
                 SysUserEntity userEntity = userService.getById(userId);
                 jsonObject.put("userName", userEntity.getUsername());
+                jsonObject.put("userId", userEntity.getUserId());
             }
             jsonObject.put("examTime", answerPapers.get(0).getCreateTime());
 
@@ -118,9 +119,7 @@ public class AnswerPaperController extends AbstractController {
         List<JSONObject> questions = questionList.stream().map(item -> JSONObject.parseObject(JSON.toJSONString(item), JSONObject.class)).collect(Collectors.toList());
         questions.forEach(question -> {
             Long id = question.getLong("id");
-            String reply = question.getString("reply");
             AnswerPaperEntity answerPaperEntity = new AnswerPaperEntity();
-            answerPaperEntity.setAnswer(reply);
             answerPaperEntity.setPaperId(paperId);
             answerPaperEntity.setQuestionId(id);
             answerPaperEntity.setCreateTime(new Date());
@@ -128,10 +127,13 @@ public class AnswerPaperController extends AbstractController {
             String standerAnswer = question.getString("standerAnswer");
             Integer maxScore = question.getInteger("score");
             // 识别图片,自动计算分数
-//            String imageUrl = question.getString("imageUrl");
-//            String answer = ImageUtils.getImageText(imageUrl);
+            String imageUrl = question.getString("imageUrl");
+            String reply = ImageUtils.getImageText(imageUrl);
             int score = ImageUtils.getScore(standerAnswer, reply, maxScore);
             answerPaperEntity.setScore(score);
+            answerPaperEntity.setAnswer(reply);
+            System.out.printf("接收到答案 questionId=" + id + " imageUrl = " + imageUrl + "文本答案 =" + reply);
+            answerPaperEntity.setAnswerUrl(imageUrl);
             answerPaperService.save(answerPaperEntity);
         });
         return R.ok();
@@ -180,23 +182,20 @@ public class AnswerPaperController extends AbstractController {
     @RequestMapping("/detail/{id}")
 //    @RequiresPermissions("exam:paper:info")
     public R getPaperInfo(@PathVariable("id") Long id, @RequestParam Map<String, Object> params) {
-        Long userId = getUserId();
+        Object userId = params.get("userId");
         QueryWrapper<AnswerPaperEntity> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("paper_id", id);
         queryWrapper.eq("user_id", userId);
         List<AnswerPaperEntity> list = answerPaperService.list(queryWrapper);
 
         PaperEntity paper = paperService.getById(id);
-//        QueryWrapper<PaperQuestionEntity> queryWrapper = new QueryWrapper<>();
-//        queryWrapper.eq("paper_id", paper.getId());
-//        List<PaperQuestionEntity> paperQuestions = paperQuestionService.list(queryWrapper);
         List<JSONObject> questionJsons = new ArrayList<>();
         list.forEach(answerPaperEntity -> {
             JSONObject jsonObject = new JSONObject();
-//            BeanUtil.copyProperties(paperQuestion, jsonObject);
             QuestionEntity question = questionService.getById(answerPaperEntity.getQuestionId());
             jsonObject.put("content", question.getContent());
             jsonObject.put("answer", answerPaperEntity.getAnswer());
+            jsonObject.put("imageUrl", answerPaperEntity.getAnswerUrl());
             jsonObject.put("type", question.getType());
             jsonObject.put("score", question.getScores());
             jsonObject.put("questionId", answerPaperEntity.getId());
@@ -205,8 +204,9 @@ public class AnswerPaperController extends AbstractController {
             questionJsons.add(jsonObject);
         });
         JSONObject jsonObject = JSONObject.parseObject(JSON.toJSONString(paper));
-//        jsonObject.put("paper",paper);
         jsonObject.put("questionList", questionJsons);
+        long userTotalScore = list.stream().map(AnswerPaperEntity::getScore).mapToLong(Long::valueOf).sum();
+        jsonObject.put("userTotalScore", userTotalScore);
         return R.ok().put("data", jsonObject);
     }
 
