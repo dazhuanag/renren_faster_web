@@ -1,13 +1,15 @@
 /**
  * Copyright (c) 2016-2019 人人开源 All rights reserved.
- *
+ * <p>
  * https://www.renren.io
- *
+ * <p>
  * 版权所有，侵权必究！
  */
 
 package io.renren.modules.sys.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -15,11 +17,21 @@ import io.renren.common.exception.RRException;
 import io.renren.common.utils.Constant;
 import io.renren.common.utils.PageUtils;
 import io.renren.common.utils.Query;
+import io.renren.modules.exam.VO.SysUserVO;
+import io.renren.modules.exam.entity.EClassEntity;
+import io.renren.modules.exam.entity.ECourseEntity;
+import io.renren.modules.exam.entity.EMajorEntity;
+import io.renren.modules.exam.service.EClassService;
+import io.renren.modules.exam.service.ECourseService;
+import io.renren.modules.exam.service.EMajorService;
 import io.renren.modules.sys.dao.SysUserDao;
+import io.renren.modules.sys.entity.SysRoleEntity;
 import io.renren.modules.sys.entity.SysUserEntity;
+import io.renren.modules.sys.entity.SysUserRoleEntity;
 import io.renren.modules.sys.service.SysRoleService;
 import io.renren.modules.sys.service.SysUserRoleService;
 import io.renren.modules.sys.service.SysUserService;
+import io.swagger.models.auth.In;
 import org.apache.commons.lang.RandomStringUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.shiro.crypto.hash.Sha256Hash;
@@ -27,10 +39,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 
 /**
@@ -40,106 +55,136 @@ import java.util.Map;
  */
 @Service("sysUserService")
 public class SysUserServiceImpl extends ServiceImpl<SysUserDao, SysUserEntity> implements SysUserService {
-	@Autowired
-	private SysUserRoleService sysUserRoleService;
-	@Autowired
-	private SysRoleService sysRoleService;
+    @Autowired
+    private SysUserRoleService sysUserRoleService;
+    @Autowired
+    private SysRoleService sysRoleService;
+    @Autowired
+    private ECourseService courseService;
+    @Autowired
+    private EClassService classService;
+    @Autowired
+    private EMajorService majorService;
+    @Autowired
+    private SysUserDao sysUserDao;
 
-	@Override
-	public PageUtils queryPage(Map<String, Object> params) {
-		String username = (String)params.get("username");
-		Long createUserId = (Long)params.get("createUserId");
+    @Override
+    public PageUtils queryPage(Map<String, Object> params) {
+        String username = (String) params.get("username");
+        Long createUserId = (Long) params.get("createUserId");
+        Object roleId = params.get("roleId");
+        List<Long> userIds = new ArrayList<>();
+        if (roleId != null) {
+            QueryWrapper<SysUserRoleEntity> wrapper = new QueryWrapper<>();
+            wrapper.eq("role_id", roleId);
+            List<SysUserRoleEntity> userRoleEntities = sysUserRoleService.list(wrapper);
+            userIds = userRoleEntities.stream().map(SysUserRoleEntity::getUserId).collect(Collectors.toList());
+        }
 
-		IPage<SysUserEntity> page = this.page(
-			new Query<SysUserEntity>().getPage(params),
-			new QueryWrapper<SysUserEntity>()
-				.like(StringUtils.isNotBlank(username),"username", username)
-				.eq(createUserId != null,"create_user_id", createUserId)
-		);
+        IPage<SysUserEntity> page = this.page(
+                new Query<SysUserEntity>().getPage(params),
+                new QueryWrapper<SysUserEntity>()
+                        .like(StringUtils.isNotBlank(username), "username", username)
+                        .eq(createUserId != null, "create_user_id", createUserId)
+                        .in(roleId != null, "user_id", userIds)
+        );
+        List<SysUserVO> userVOS = new ArrayList<>();
 
-		return new PageUtils(page);
-	}
+        List<SysUserEntity> records = page.getRecords();
+        records.forEach(item -> {
+            SysUserVO sysUserVO = new SysUserVO();
+            BeanUtil.copyProperties(item, sysUserVO);
+            EClassEntity classEntity = classService.getById(sysUserVO.getClasses());
+            ECourseEntity courseEntity = courseService.getById(sysUserVO.getCourse());
+            EMajorEntity majorEntity = majorService.getById(sysUserVO.getMajor());
+            sysUserVO.setClassName(classEntity == null ? null : classEntity.getName());
+            sysUserVO.setCourseName(courseEntity == null ? null : courseEntity.getName());
+            sysUserVO.setMajorName(majorEntity == null ? null : majorEntity.getName());
+            userVOS.add(sysUserVO);
+        });
+        return new PageUtils(page, userVOS);
+    }
 
-	@Override
-	public List<String> queryAllPerms(Long userId) {
-		return baseMapper.queryAllPerms(userId);
-	}
+    @Override
+    public List<String> queryAllPerms(Long userId) {
+        return baseMapper.queryAllPerms(userId);
+    }
 
-	@Override
-	public List<Long> queryAllMenuId(Long userId) {
-		return baseMapper.queryAllMenuId(userId);
-	}
+    @Override
+    public List<Long> queryAllMenuId(Long userId) {
+        return baseMapper.queryAllMenuId(userId);
+    }
 
-	@Override
-	public SysUserEntity queryByUserName(String username) {
-		return baseMapper.queryByUserName(username);
-	}
+    @Override
+    public SysUserEntity queryByUserName(String username) {
+        return baseMapper.queryByUserName(username);
+    }
 
-	@Override
-	@Transactional
-	public void saveUser(SysUserEntity user) {
-		user.setCreateTime(new Date());
-		//sha256加密
-		String salt = RandomStringUtils.randomAlphanumeric(20);
-		user.setPassword(new Sha256Hash(user.getPassword(), salt).toHex());
-		user.setSalt(salt);
-		this.save(user);
-		
-		//检查角色是否越权
-		checkRole(user);
-		
-		//保存用户与角色关系
-		sysUserRoleService.saveOrUpdate(user.getUserId(), user.getRoleIdList());
-	}
+    @Override
+    @Transactional
+    public void saveUser(SysUserEntity user) {
+        user.setCreateTime(new Date());
+        //sha256加密
+        String salt = RandomStringUtils.randomAlphanumeric(20);
+        user.setPassword(new Sha256Hash(user.getPassword(), salt).toHex());
+        user.setSalt(salt);
+        this.save(user);
 
-	@Override
-	@Transactional
-	public void update(SysUserEntity user) {
-		if(StringUtils.isBlank(user.getPassword())){
-			user.setPassword(null);
-		}else{
-			user.setPassword(new Sha256Hash(user.getPassword(), user.getSalt()).toHex());
-		}
-		this.updateById(user);
-		
-		//检查角色是否越权
-		checkRole(user);
-		
-		//保存用户与角色关系
-		sysUserRoleService.saveOrUpdate(user.getUserId(), user.getRoleIdList());
-	}
+        //检查角色是否越权
+        checkRole(user);
 
-	@Override
-	public void deleteBatch(Long[] userId) {
-		this.removeByIds(Arrays.asList(userId));
-	}
+        //保存用户与角色关系
+        sysUserRoleService.saveOrUpdate(user.getUserId(), user.getRoleIdList());
+    }
 
-	@Override
-	public boolean updatePassword(Long userId, String password, String newPassword) {
-		SysUserEntity userEntity = new SysUserEntity();
-		userEntity.setPassword(newPassword);
-		return this.update(userEntity,
-				new QueryWrapper<SysUserEntity>().eq("user_id", userId).eq("password", password));
-	}
-	
-	/**
-	 * 检查角色是否越权
-	 */
-	private void checkRole(SysUserEntity user){
-		if(user.getRoleIdList() == null || user.getRoleIdList().size() == 0){
-			return;
-		}
-		//如果不是超级管理员，则需要判断用户的角色是否自己创建
-		if(user.getCreateUserId() == Constant.SUPER_ADMIN){
-			return ;
-		}
-		
-		//查询用户创建的角色列表
-		List<Long> roleIdList = sysRoleService.queryRoleIdList(user.getCreateUserId());
+    @Override
+    @Transactional
+    public void update(SysUserEntity user) {
+        if (StringUtils.isBlank(user.getPassword())) {
+            user.setPassword(null);
+        } else {
+            user.setPassword(new Sha256Hash(user.getPassword(), user.getSalt()).toHex());
+        }
+        this.updateById(user);
 
-		//判断是否越权
-		if(!roleIdList.containsAll(user.getRoleIdList())){
-			throw new RRException("新增用户所选角色，不是本人创建");
-		}
-	}
+        //检查角色是否越权
+        checkRole(user);
+
+        //保存用户与角色关系
+        sysUserRoleService.saveOrUpdate(user.getUserId(), user.getRoleIdList());
+    }
+
+    @Override
+    public void deleteBatch(Long[] userId) {
+        this.removeByIds(Arrays.asList(userId));
+    }
+
+    @Override
+    public boolean updatePassword(Long userId, String password, String newPassword) {
+        SysUserEntity userEntity = new SysUserEntity();
+        userEntity.setPassword(newPassword);
+        return this.update(userEntity,
+                new QueryWrapper<SysUserEntity>().eq("user_id", userId).eq("password", password));
+    }
+
+    /**
+     * 检查角色是否越权
+     */
+    private void checkRole(SysUserEntity user) {
+        if (user.getRoleIdList() == null || user.getRoleIdList().size() == 0) {
+            return;
+        }
+        //如果不是超级管理员，则需要判断用户的角色是否自己创建
+        if (user.getCreateUserId() == Constant.SUPER_ADMIN) {
+            return;
+        }
+
+        //查询用户创建的角色列表
+        List<Long> roleIdList = sysRoleService.queryRoleIdList(user.getCreateUserId());
+
+        //判断是否越权
+        if (!roleIdList.containsAll(user.getRoleIdList())) {
+            throw new RRException("新增用户所选角色，不是本人创建");
+        }
+    }
 }

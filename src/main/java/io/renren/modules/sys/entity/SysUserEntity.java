@@ -30,7 +30,7 @@ import java.util.List;
 @TableName("sys_user")
 public class SysUserEntity implements Serializable {
 	private static final long serialVersionUID = 1L;
-	
+
 	/**
 	 * 用户ID
 	 */
@@ -46,7 +46,7 @@ public class SysUserEntity implements Serializable {
 	/**
 	 * 密码
 	 */
-	@NotBlank(message="密码不能为空", groups = AddGroup.class)
+//	@NotBlank(message="密码不能为空", groups = AddGroup.class)
 	private String password;
 
 	/**
@@ -70,6 +70,17 @@ public class SysUserEntity implements Serializable {
 	 * 状态  0：禁用   1：正常
 	 */
 	private Integer status;
+
+	/**
+	 * 状态  0：男   1：女
+	 */
+	private Integer sex;
+
+	private Integer classes;
+
+	private Integer major;
+
+	private Integer course;
 
 	/**
 	 * 角色ID列表

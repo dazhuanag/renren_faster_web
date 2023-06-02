@@ -19,8 +19,8 @@ import org.json.JSONObject;
 
 public class ImageUtils {
     //设置APPID/AK/SK
-    public static final String API_KEY = "lSVAYnGx1AqAYXfG8i9Su51V";
-    public static final String SECRET_KEY = "LDIoIGHG9QrGlvQMHHlQ7q6iV4wm83ru";
+    public static final String API_KEY = "uxuGMog2tjbQImMWOGoogbBn";
+    public static final String SECRET_KEY = "9a0Qg620T9Dgg44NnE1fsOplwUG8Wf1q";
 
     public static final String TEXT_API_KEY = "zAnlWaqBBFXhoWxeMDiOO4rb";
     public static final String TEXT_SECRET_KEY = "b3vAdRhph2nvptWosxLA7c1oIZcr7Mwu";
@@ -28,10 +28,10 @@ public class ImageUtils {
 
 
     public static void main(String[] args) throws IOException {
-        String imageText = getImageText("https://educ-rjw.oss-cn-hangzhou.aliyuncs.com/exam/1684846518290_test.jpeg");
-//        System.out.printf("imageTest:\n" + imageText);
-        int score = getScore(imageText, "数学学期2023上学期老师教师亲和力1教师教师课堂氛围", 20);
-        System.out.printf("score:" + score);
+        String imageText = getImageText("https://educ-rjw.oss-cn-hangzhou.aliyuncs.com/exam/1684908727284_answer1.png");
+        System.out.printf("imageTest:\n" + imageText);
+//        int score = getScore(imageText, "数学学期2023上学期老师教师亲和力1教师教师课堂氛围", 20);
+//        System.out.printf("score:" + score);
     }
 
     public static int getScore(String origin, String target, int maxScore) {
@@ -69,7 +69,7 @@ public class ImageUtils {
         MediaType mediaType = MediaType.parse("application/x-www-form-urlencoded");
         RequestBody body = RequestBody.create(mediaType, "url=" + URLEncoder.encode(imageUrl));
         Request request = new Request.Builder()
-                .url("https://aip.baidubce.com/rest/2.0/ocr/v1/general_basic?access_token=" + getAccessToken(API_KEY, SECRET_KEY))
+                .url("https://aip.baidubce.com/rest/2.0/ocr/v1/handwriting?access_token=" + getAccessToken(API_KEY, SECRET_KEY))
                 .method("POST", body)
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
                 .addHeader("Accept", "application/json")
